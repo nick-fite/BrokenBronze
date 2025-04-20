@@ -15,15 +15,36 @@ class AMarchingCubeObject : public AActor
 public:	
 	// Sets default values for this actor's properties
 	AMarchingCubeObject();
+	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
+	float SurfaceLevel = 0.0f;
+	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
+	bool Interpolation = false;
 
-	//Object and information
-	UProceduralMeshComponent* Mesh;
+private:
+	void Setup();
+	void GenerateData(const FVector& Position);
+	void GenerateMesh();
+	void March(int X, int Y, int Z, const float Cube[8]);
+	int GetVoxelIndex(int X, int Y, int Z) const;
+	float GetInterpolationOffset(float V1, float V2) const;
+	
+	void ApplyMesh();
+
+	TObjectPtr<UProceduralMeshComponent> Mesh;
+	TArray<float> Voxels;
+	int TriangleOrder[3] = {0,1,2};
+	int Size = 16;
+	int VertexCount;
+
 	TArray<FVector> Vertices;
-	TArray<int32> Triangles;
-	TArray<FVector2D> UVs;
-	TArray<FColor> Colors;
+	TArray<int> Triangles;
 	TArray<FVector> Normals;
+	TArray<FColor> Colors;
+	TArray<FVector2D> UV0;
+	
+	
 
+	
 	//the marching cube technique that we're trying to mimic requires a lot of data. We could remake it.
 	//We could also reinvent the wheel, but I think we have better things to do.
 	//information was pulled from
