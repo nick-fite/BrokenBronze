@@ -54,7 +54,7 @@ void AMarchingCubeObject::GenerateData(const FVector& Position)
 	{
 		for (int Y = 0; Y <= Size; Y++)
 		{
-			for (int z = 0; z < Size; ++z)
+			/*for (int z = 0; z < Size; ++z)
 			{
 				const float XPos = X + .1f + Loc.X;
 				const float YPos = Y + .1f + Loc.Y;
@@ -65,8 +65,8 @@ void AMarchingCubeObject::GenerateData(const FVector& Position)
 					0, Size);
 				UE_LOG(LogTemp, Warning, TEXT("Value is %d"), val);
 				Voxels[GetVoxelIndex(X,Y,z)] = val;
-			}
-			/*const float xPos = X + .1 + Position.X;
+			}*/
+			const float xPos = X + .1 + Position.X;
 			const float yPos = Y + .1 + Position.Y;
 			int Height = FMath::Clamp(FMath::RoundToInt((FMath::PerlinNoise2D(FVector2D(xPos, yPos)) + 1) * Size / 2),
 			                                0, Size);
@@ -78,7 +78,7 @@ void AMarchingCubeObject::GenerateData(const FVector& Position)
 			for (int z = Height; z < Size; z++)
 			{
 				Voxels[GetVoxelIndex(X,Y,z)] = -1.0f;
-			}*/
+			}
 			
 		}
 	}
