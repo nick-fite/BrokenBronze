@@ -30,11 +30,13 @@ private:
 	
 	void ApplyMesh();
 
+	UPROPERTY()
 	TObjectPtr<UProceduralMeshComponent> Mesh;
+
 	TArray<float> Voxels;
 	int TriangleOrder[3] = {0,1,2};
 	int Size = 16;
-	int VertexCount;
+	int VertexCount = 0;
 
 	TArray<FVector> Vertices;
 	TArray<int> Triangles;

@@ -49,15 +49,37 @@ void AMarchingCubeObject::Setup()
 
 void AMarchingCubeObject::GenerateData(const FVector& Position)
 {
+	const FVector Loc = GetActorLocation();
 	for (int X = 0; X <= Size; X++)
 	{
 		for (int Y = 0; Y <= Size; Y++)
 		{
-			for (int Z = 0; Z < Size; Z++)
+			for (int z = 0; z < Size; ++z)
 			{
-				Voxels[GetVoxelIndex(X,Y,Z)] = 0.5;
+				const float XPos = X + .1f + Loc.X;
+				const float YPos = Y + .1f + Loc.Y;
+				const float ZPos = z + .1f + Loc.Z;
+
+				const int val = FMath::Clamp(
+					FMath::RoundToInt((FMath::PerlinNoise3D(FVector(XPos * .1, YPos * .1, ZPos * .1)) + 1) * Size / 2),
+					0, Size);
+				UE_LOG(LogTemp, Warning, TEXT("Value is %d"), val);
+				Voxels[GetVoxelIndex(X,Y,z)] = val;
 			}
-			UProceduralMeshComponent
+			/*const float xPos = X + .1 + Position.X;
+			const float yPos = Y + .1 + Position.Y;
+			int Height = FMath::Clamp(FMath::RoundToInt((FMath::PerlinNoise2D(FVector2D(xPos, yPos)) + 1) * Size / 2),
+			                                0, Size);
+			for (int z = 0; z < Height; z++)
+			{
+				Voxels[GetVoxelIndex(X,Y,z)] = 1.0f;
+			}
+
+			for (int z = Height; z < Size; z++)
+			{
+				Voxels[GetVoxelIndex(X,Y,z)] = -1.0f;
+			}*/
+			
 		}
 	}
 }
@@ -107,6 +129,7 @@ void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
 
 	if (EdgeMask == 0 ) return;
 
+	//UE_LOG(LogTemp, Warning, TEXT("Making Edges"))
 	for (int i = 0; i < 12; ++i)
 	{
 		if ((EdgeMask & (1 << i)) != 0)
