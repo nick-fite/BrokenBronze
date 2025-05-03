@@ -9,6 +9,8 @@ AMarchingCubeObject::AMarchingCubeObject()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	StaticMesh = CreateDefaultSubobject<UStaticMesh>(TEXT("StaticMesh"));
+	
 	Mesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Mesh"));
 	RootComponent = Mesh;
 
@@ -19,17 +21,73 @@ void AMarchingCubeObject::BeginPlay()
 {
 	Super::BeginPlay();
 
-	Voxels.SetNum((Size + 1) * (Size + 1) * (Size + 1));
-	Colors.SetNum((Size + 1) * (Size + 1) * (Size + 1));
+	//Voxels.SetNum((Size + 1) * (Size + 1) * (Size + 1));
+	//Colors.SetNum((Size + 1) * (Size + 1) * (Size + 1));
+	Voxels = TArray<float>();
+	Colors = TArray<FColor>();
 	Vertices = TArray<FVector>();
 	Triangles = TArray<int>();
 	Normals = TArray<FVector>();
-	UV0 = TArray<FVector2D>();
+	UVs = TArray<FVector2D>();
 
-	UE_LOG(LogTemp, Warning, TEXT("Starting Data Generation"));
-	GenerateData(GetActorLocation() / 100);
+
+	if (StaticMesh)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Mesh is initialized"));
+		//UStaticMesh* tempStatic = StaticMesh->GetStaticMesh();
+		FStaticMeshRenderData* renderData = StaticMesh->GetRenderData();
+		if (renderData)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Getting Data"));
+			const FStaticMeshLODResources& LODResources = renderData->LODResources[0];
+			const FPositionVertexBuffer& PositionBuffer = LODResources.VertexBuffers.PositionVertexBuffer;
+			const FStaticMeshVertexBuffer& VertexBuffer = LODResources.VertexBuffers.StaticMeshVertexBuffer;
+			const FIndexArrayView& Indicies = LODResources.IndexBuffer.GetArrayView();
+
+			for (uint32 i = 0; i < PositionBuffer.GetNumVertices(); i++)
+			{
+				FVector3f temp = PositionBuffer.VertexPosition(i);
+				Vertices.Add(FVector(temp.X, temp.Y, temp.Z));
+			}
+			
+			for (uint32 i = 0; i < VertexBuffer.GetNumVertices(); i++)
+			{
+				FVector3f temp = VertexBuffer.VertexTangentZ(i);
+				Normals.Add(FVector(temp.X, temp.Y, temp.Z));
+			}
+		
+			for (uint32 i = 0; i < VertexBuffer.GetNumVertices(); i++)
+			{
+				FVector2f temp = VertexBuffer.GetVertexUV(i, 0) ;
+				UVs.Add(FVector2D(temp.X, temp.Y));
+			}
+			
+			for (int32 i = 0; i < Indicies.Num(); i+=3)
+			{
+				Triangles.Add(Indicies[i]);
+				Triangles.Add(Indicies[i + 1]);
+				Triangles.Add(Indicies[i + 2]);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Could not get Data Data"));
+		}
+	}
+	else
+	{
+			UE_LOG(LogTemp, Warning, TEXT("mesh not initialized"));
+	}
+
+	//StaticMesh->SetVisibility(false);
+
+	Mesh->CreateMeshSection(0, Vertices, Triangles, Normals, UVs, Colors, TArray<FProcMeshTangent>(), true);
+	
+
+	//UE_LOG(LogTemp, Warning, TEXT("Starting Data Generation"));
+	//GenerateData(GetActorLocation() / 100);
 	UE_LOG(LogTemp, Warning, TEXT("Generate Data Done"));
-	GenerateMesh();
+	//GenerateMesh();
 	UE_LOG(LogTemp, Warning, TEXT("Generate Mesh Done"));
 	ApplyMesh();
 	UE_LOG(LogTemp, Warning, TEXT("Apply Mesh Done"));
@@ -49,37 +107,24 @@ void AMarchingCubeObject::Setup()
 
 void AMarchingCubeObject::GenerateData(const FVector& Position)
 {
-	const FVector Loc = GetActorLocation();
 	for (int X = 0; X <= Size; X++)
 	{
 		for (int Y = 0; Y <= Size; Y++)
 		{
-			/*for (int z = 0; z < Size; ++z)
+			for (int z = 0; z < Size; ++z)
 			{
-				const float XPos = X + .1f + Loc.X;
-				const float YPos = Y + .1f + Loc.Y;
-				const float ZPos = z + .1f + Loc.Z;
+				const float XPos = X + .1f + Position.X;
+				const float YPos = Y + .1f + Position.Y;
+				const float ZPos = z + .1f + Position.Z;
 
-				const int val = FMath::Clamp(
-					FMath::RoundToInt((FMath::PerlinNoise3D(FVector(XPos * .1, YPos * .1, ZPos * .1)) + 1) * Size / 2),
-					0, Size);
-				UE_LOG(LogTemp, Warning, TEXT("Value is %d"), val);
+				//const int val = FMath::Clamp(
+					//FMath::RoundToInt((FMath::PerlinNoise3D(FVector(XPos * .1, YPos * .1, ZPos * .1)) + 1) * Size / 2),
+					//0, Size);
+				float val = FMath::PerlinNoise3D(FVector(XPos, YPos, ZPos));
+				if (val < .1f) val = 0;
+				UE_LOG(LogTemp, Warning, TEXT("Pos: %f, %f, %f | Value is %f"), XPos, YPos, ZPos, val);
 				Voxels[GetVoxelIndex(X,Y,z)] = val;
-			}*/
-			const float xPos = X + .1 + Position.X;
-			const float yPos = Y + .1 + Position.Y;
-			int Height = FMath::Clamp(FMath::RoundToInt((FMath::PerlinNoise2D(FVector2D(xPos, yPos)) + 1) * Size / 2),
-			                                0, Size);
-			for (int z = 0; z < Height; z++)
-			{
-				Voxels[GetVoxelIndex(X,Y,z)] = 1.0f;
 			}
-
-			for (int z = Height; z < Size; z++)
-			{
-				Voxels[GetVoxelIndex(X,Y,z)] = -1.0f;
-			}
-			
 		}
 	}
 }
@@ -188,5 +233,5 @@ void AMarchingCubeObject::ApplyMesh()
 	UE_LOG(LogTemp, Warning, TEXT("%d"), Triangles.Num());
 	UE_LOG(LogTemp, Warning, TEXT("%d"), Normals.Num());
 	UE_LOG(LogTemp, Warning, TEXT("%d"), Colors.Num());
-	Mesh->CreateMeshSection(0, Vertices, Triangles, Normals, UV0, Colors, TArray<FProcMeshTangent>(), true);
+	Mesh->CreateMeshSection(0, Vertices, Triangles, Normals, UVs, Colors, TArray<FProcMeshTangent>(), true);
 }

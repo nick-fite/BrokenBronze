@@ -20,6 +20,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
 	bool Interpolation = false;
 
+	
+
 private:
 	void Setup();
 	void GenerateData(const FVector& Position);
@@ -33,6 +35,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UProceduralMeshComponent> Mesh;
 
+	UPROPERTY(EditDefaultsOnly, Category="Static Mesh")
+	UStaticMesh* StaticMesh;
+
 	TArray<float> Voxels;
 	int TriangleOrder[3] = {0,1,2};
 	int Size = 16;
@@ -42,7 +47,7 @@ private:
 	TArray<int> Triangles;
 	TArray<FVector> Normals;
 	TArray<FColor> Colors;
-	TArray<FVector2D> UV0;
+	TArray<FVector2D> UVs;
 	
 	
 
