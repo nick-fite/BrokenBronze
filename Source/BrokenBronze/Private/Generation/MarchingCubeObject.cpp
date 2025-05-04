@@ -29,14 +29,17 @@ void AMarchingCubeObject::MakeHole(const FVector& Center, float Radius)
 		{
 			for (int Z = 0; Z <= Size; ++Z)
 			{
-				FVector WorldPos = startPos + FVector(X, Y, Z) * VoxelSize;
+				FVector WorldPos = FVector(X, Y, Z) * VoxelSize;
 				//FVector localPos = GetActorTransform().InverseTransformPosition(WorldPos);
 
 				float dist = FVector::Dist(WorldPos, Center);
-				if (dist < Radius * MeshScale)
+				if (dist < Radius * VoxelSize)
 				{
 					UE_LOG(LogTemp, Display, TEXT("dist: %f"), dist);
-					Voxels[GetVoxelIndex(X,Y,Z)] = -VoxelSize;
+                    int index = GetVoxelIndex(X,Y,Z);
+                    float currentValue = Voxels[index];
+                    Voxels[index] = FMath::Min(currentValue, -VoxelSize * 2);
+					VoxelsHitStatus[index] = true;
 				}
 			}
 		}
@@ -102,6 +105,7 @@ void AMarchingCubeObject::BeginPlay()
 	Size = FMath::Max(FMath::Max(SizeX, SizeY), SizeZ);
 	
 	Voxels.SetNum((Size + 1) * (Size + 1) * (Size + 1));
+	VoxelsHitStatus.SetNum((Size + 1) * (Size + 1) * (Size + 1));
 	//Colors.SetNum((Size + 1) * (Size + 1) * (Size + 1));
 	//Voxels = TArray<float>();
 	Colors = TArray<FColor>();
@@ -236,6 +240,7 @@ void AMarchingCubeObject::GenerateData(const FVector& Position)
                 }
 
 				Voxels[GetVoxelIndex(X,Y,Z)] = isInside ? dist : -dist;
+				VoxelsHitStatus[GetVoxelIndex(X,Y,Z)] = false;
 			}
 		}
 	} // Count how many voxels are inside
@@ -296,6 +301,27 @@ void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
 	const int EdgeMask = CubeEdgeFlags[VertexMask];
 
 	if (EdgeMask == 0 ) return;
+	  // If this cube generates triangles, draw a debug box
+    if (EdgeMask != 0)
+    {
+        FVector CubeMin = FVector(X, Y, Z) * VoxelSize;
+        FVector CubeMax = CubeMin + FVector(VoxelSize, VoxelSize, VoxelSize);
+        FColor BoxColor = FColor::Yellow;
+        FColor BoxHitColor = FColor::Red;
+        
+        // Draw debug box with actor transform applied
+        DrawDebugBox(
+            GetWorld(),
+            GetActorLocation() + GetActorRotation().RotateVector((CubeMin + CubeMax) * 0.5f),
+            (CubeMax - CubeMin) * 0.5f,
+            GetActorRotation().Quaternion(),
+            VoxelsHitStatus[GetVoxelIndex(X,Y,Z)] ? BoxHitColor : BoxColor,
+            false,
+            10000000.0f,  // Lifetime (0 = one frame)
+            0,     // DepthPriority
+            1.0f   // Thickness
+        );
+    }
 
 	//UE_LOG(LogTemp, Warning, TEXT("Making Edges"))
 	for (int i = 0; i < 12; ++i)
@@ -313,9 +339,9 @@ void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
 	for (int i = 0; i < 5; ++i)
 	{
 		if (TriangleConnectionTable[VertexMask][3*i] < 0) break;
-		FVector V1  = EdgeVertex[TriangleConnectionTable[VertexMask][3*i]] * MeshScale;
-		FVector V2  = EdgeVertex[TriangleConnectionTable[VertexMask][3*i + 1]] * MeshScale;
-		FVector V3  = EdgeVertex[TriangleConnectionTable[VertexMask][3*i + 2]] * MeshScale;
+		FVector V1  = EdgeVertex[TriangleConnectionTable[VertexMask][3*i]] * VoxelSize;
+		FVector V2  = EdgeVertex[TriangleConnectionTable[VertexMask][3*i + 1]] * VoxelSize;
+		FVector V3  = EdgeVertex[TriangleConnectionTable[VertexMask][3*i + 2]] * VoxelSize;
 
 		FVector Normal = FVector::CrossProduct(V2 - V1, V3 - V1);
 

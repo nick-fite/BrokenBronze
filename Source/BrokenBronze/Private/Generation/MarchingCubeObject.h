@@ -44,6 +44,7 @@ private:
 	UStaticMesh* StaticMesh;
 
 	TArray<float> Voxels;
+	TArray<bool> VoxelsHitStatus;
 	int TriangleOrder[3] = {0,1,2};
 	int Size = 64;
 	UPROPERTY(EditDefaultsOnly, Category="Static Mesh")
