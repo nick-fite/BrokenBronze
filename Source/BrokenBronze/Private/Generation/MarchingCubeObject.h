@@ -18,7 +18,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
 	float SurfaceLevel = 0.0f;
 	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
-	bool Interpolation = false;
+	bool Interpolation = true;
+	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
+	float MeshScale = 10.f;
+	
+	UFUNCTION(BlueprintCallable)
+	void MakeHole(const FVector& Center, float Radius);
 
 	
 
@@ -40,7 +45,9 @@ private:
 
 	TArray<float> Voxels;
 	int TriangleOrder[3] = {0,1,2};
-	int Size = 16;
+	int Size = 64;
+	UPROPERTY(EditDefaultsOnly, Category="Static Mesh")
+	float VoxelSize = 20.f;
 	int VertexCount = 0;
 
 	TArray<FVector> Vertices;
@@ -48,8 +55,18 @@ private:
 	TArray<FVector> Normals;
 	TArray<FColor> Colors;
 	TArray<FVector2D> UVs;
-	
-	
+
+	//Original Stuff
+	TArray<FVector> OriginalVertices;
+	TArray<int> OriginalTriangles;
+	TArray<FVector> OriginalNormals;
+	TArray<FColor> OriginalColors;
+	TArray<FVector2D> OriginalUVs;
+	TArray<int> OriginalIndices;
+
+
+	float ClosestTriangleDistance(const FVector& P);
+	bool IsInsideMesh(const FVector& P);
 
 	
 	//the marching cube technique that we're trying to mimic requires a lot of data. We could remake it.

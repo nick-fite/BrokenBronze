@@ -8,7 +8,7 @@ public class BrokenBronze : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "RenderCore", "RHI"});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "ProceduralMeshComponent", "ProceduralMeshComponentEditor" });
 
