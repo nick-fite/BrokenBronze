@@ -36,7 +36,7 @@ void AMarchingCubeObject::MakeHole(const FVector& Center, float Radius)
 				if (dist < Radius * MeshScale)
 				{
 					UE_LOG(LogTemp, Display, TEXT("dist: %f"), dist);
-					Voxels[GetVoxelIndex(X,Y,Z)] = -1;
+					Voxels[GetVoxelIndex(X,Y,Z)] = -VoxelSize;
 				}
 			}
 		}
