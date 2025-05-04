@@ -318,7 +318,8 @@ void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
 	const int EdgeMask = CubeEdgeFlags[VertexMask];
 
 	if (EdgeMask == 0 ) return;
-	  // If this cube generates triangles, draw a debug box
+	
+	//Makes cubes showing alll the marching cubes in the object. Debugging.
     /*if (EdgeMask != 0)
     {
         FVector CubeMin = FVector(X, Y, Z) * VoxelSize;
