@@ -29,9 +29,10 @@ void AMarchingCubeObject::MakeHole(const FVector& Center, float Radius)
 		{
 			for (int Z = 0; Z <= Size; ++Z)
 			{
-				FVector WorldPos = FVector(X, Y, Z) * VoxelSize;
+				//FVector WorldPos = FVector(X, Y, Z) * VoxelSize;
 				//FVector localPos = GetActorTransform().InverseTransformPosition(WorldPos);
-
+				FVector WorldPos = GetVoxelWorldPosition(GetVoxelIndex(X,Y,Z));
+				
 				float dist = FVector::Dist(WorldPos, Center);
 				if (dist < Radius * VoxelSize)
 				{
@@ -90,6 +91,22 @@ bool AMarchingCubeObject::IsInsideMesh(const FVector& P)
 		}
 	}
 	return (hits % 2) == 1;
+}
+
+FVector AMarchingCubeObject::GetVoxelWorldPosition(int ArrayIndex) const
+{
+	int Z = ArrayIndex/((Size + 1) * (Size + 1));
+	int remainder = ArrayIndex %((Size + 1) * (Size + 1));
+	int Y = remainder / (Size + 1);
+	int X = remainder % (Size + 1);
+
+	return GetVoxelWorldPosition(X,Y,Z);
+}
+
+FVector AMarchingCubeObject::GetVoxelWorldPosition(int X, int Y, int Z) const
+{
+	FVector localPos = FVector(X, Y, Z) * VoxelSize;
+	return GetActorLocation() + GetActorRotation().RotateVector(localPos);
 }
 
 // Called when the game starts or when spawned
@@ -302,7 +319,7 @@ void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
 
 	if (EdgeMask == 0 ) return;
 	  // If this cube generates triangles, draw a debug box
-    if (EdgeMask != 0)
+    /*if (EdgeMask != 0)
     {
         FVector CubeMin = FVector(X, Y, Z) * VoxelSize;
         FVector CubeMax = CubeMin + FVector(VoxelSize, VoxelSize, VoxelSize);
@@ -321,7 +338,7 @@ void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
             0,     // DepthPriority
             1.0f   // Thickness
         );
-    }
+    }*/
 
 	//UE_LOG(LogTemp, Warning, TEXT("Making Edges"))
 	for (int i = 0; i < 12; ++i)

@@ -69,6 +69,8 @@ private:
 	float ClosestTriangleDistance(const FVector& P);
 	bool IsInsideMesh(const FVector& P);
 
+	FVector GetVoxelWorldPosition(int ArrayIndex) const;
+	FVector GetVoxelWorldPosition(int X, int Y, int Z) const;
 	
 	//the marching cube technique that we're trying to mimic requires a lot of data. We could remake it.
 	//We could also reinvent the wheel, but I think we have better things to do.
