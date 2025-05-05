@@ -3,6 +3,7 @@
 
 #include "MarchingCubeObject.h"
 
+#include "NavigationSystem.h"
 #include "Serialization/BufferArchive.h"
 
 // Sets default values
@@ -11,24 +12,31 @@ AMarchingCubeObject::AMarchingCubeObject()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	StaticMesh = CreateDefaultSubobject<UStaticMesh>(TEXT("StaticMesh"));
 	
 	Mesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Mesh"));
-	RootComponent = Mesh;
+	Mesh->SetupAttachment(RootComponent);
+	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
+	StaticMeshComponent->SetupAttachment(RootComponent);
+}
 
+void AMarchingCubeObject::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 }
 
 void AMarchingCubeObject::MakeHole(const FVector& Center, float Radius)
 {
-	for (int X = 0; X <= Size; ++X)
+	for (int X = 0; X <= SizeX; ++X)
 	{
-		for (int Y = 0; Y <= Size; ++Y)
+		for (int Y = 0; Y <= SizeY; ++Y)
 		{
-			for (int Z = 0; Z <= Size; ++Z)
+			for (int Z = 0; Z <= SizeZ; ++Z)
 			{
 				//FVector WorldPos = FVector(X, Y, Z) * VoxelSize;
 				//FVector localPos = GetActorTransform().InverseTransformPosition(WorldPos);
-				FVector WorldPos = GetVoxelWorldPosition(GetVoxelIndex(X,Y,Z));
+				FVector WorldPos = GetVoxelWorldPosition(X,Y,Z);
 				
 				float dist = FVector::Dist(WorldPos, Center);
 				if (dist < Radius * VoxelSize)
@@ -51,6 +59,8 @@ void AMarchingCubeObject::MakeHole(const FVector& Center, float Radius)
     VertexCount = 0;
     GenerateMesh();
     ApplyMesh();
+
+	UpdateNavmesh();
 }
 
 float AMarchingCubeObject::ClosestTriangleDistance(const FVector& P)
@@ -71,34 +81,83 @@ float AMarchingCubeObject::ClosestTriangleDistance(const FVector& P)
 
 bool AMarchingCubeObject::IsInsideMesh(const FVector& P)
 {
-	int hits = 0;
-	FVector RayDir = FVector(1.f, 0.3f, 0.5f).GetSafeNormal();
-	FVector RayEnd = P + RayDir * 10000.f;
-	for (int i = 0; i < OriginalIndices.Num(); i+=3)
-	{
-		const FVector& A = OriginalVertices[OriginalIndices[i]];
-		const FVector& B = OriginalVertices[OriginalIndices[i + 1]];
-		const FVector& C = OriginalVertices[OriginalIndices[i + 2]];
+	 // Use more ray directions for better coverage of flat surfaces
+    const TArray<FVector> RayDirections = {
+        FVector(1.0f, 0.0f, 0.0f),
+        FVector(0.0f, 1.0f, 0.0f),
+        FVector(0.0f, 0.0f, 1.0f),
+        FVector(-1.0f, 0.0f, 0.0f),
+        FVector(0.0f, -1.0f, 0.0f),
+        FVector(0.0f, 0.0f, -1.0f),
+        FVector(1.0f, 1.0f, 1.0f).GetSafeNormal(),
+        FVector(-1.0f, 1.0f, 1.0f).GetSafeNormal(),
+        FVector(1.0f, -1.0f, 1.0f).GetSafeNormal(),
+        FVector(1.0f, 1.0f, -1.0f).GetSafeNormal()
+    };
 
-		FVector hitPoint;
-		FVector normal;
-		if (FMath::SegmentTriangleIntersection(P, RayEnd, A, B, C, hitPoint, normal))
-		{
-			++hits;
-		}
-	}
-	return (hits % 2) == 1;
+    // Count the number of rays indicating the point is inside
+    int insideCount = 0;
+    int totalRays = RayDirections.Num();
+
+    // Small epsilon to offset ray start position slightly
+    const float Epsilon = 0.0001f;
+
+    for (const FVector& RayDir : RayDirections)
+    {
+        // Slightly offset ray starting point to avoid numerical precision issues
+        FVector RayStart = P + RayDir * Epsilon;
+        FVector RayEnd = P + RayDir * 10000.0f;
+        
+        int hits = 0;
+        bool hasHit = false;
+
+        for (int i = 0; i < OriginalIndices.Num(); i += 3)
+        {
+            const FVector& A = OriginalVertices[OriginalIndices[i]];
+            const FVector& B = OriginalVertices[OriginalIndices[i + 1]];
+            const FVector& C = OriginalVertices[OriginalIndices[i + 2]];
+
+            FVector hitPoint;
+            FVector normal;
+            
+            if (FMath::SegmentTriangleIntersection(RayStart, RayEnd, A, B, C, hitPoint, normal))
+            {
+                hasHit = true;
+                hits++;
+            }
+        }
+
+        // If no hits detected with this ray, try the opposite direction
+        if (!hasHit)
+        {
+            FVector oppositeRayEnd = P - RayDir * 10000.0f;
+            
+            for (int i = 0; i < OriginalIndices.Num(); i += 3)
+            {
+                const FVector& A = OriginalVertices[OriginalIndices[i]];
+                const FVector& B = OriginalVertices[OriginalIndices[i + 1]];
+                const FVector& C = OriginalVertices[OriginalIndices[i + 2]];
+
+                FVector hitPoint;
+                FVector normal;
+                
+                if (FMath::SegmentTriangleIntersection(RayStart, oppositeRayEnd, A, B, C, hitPoint, normal))
+                {
+                    hits++;
+                }
+            }
+        }
+
+        if ((hits % 2) == 1)
+        {
+            insideCount++;
+        }
+    }
+
+    // Use weighted voting - require more than half the rays to agree
+    return insideCount > (totalRays / 2);
 }
 
-FVector AMarchingCubeObject::GetVoxelWorldPosition(int ArrayIndex) const
-{
-	int Z = ArrayIndex/((Size + 1) * (Size + 1));
-	int remainder = ArrayIndex %((Size + 1) * (Size + 1));
-	int Y = remainder / (Size + 1);
-	int X = remainder % (Size + 1);
-
-	return GetVoxelWorldPosition(X,Y,Z);
-}
 
 FVector AMarchingCubeObject::GetVoxelWorldPosition(int X, int Y, int Z) const
 {
@@ -113,7 +172,11 @@ bool AMarchingCubeObject::SaveVoxelsToFile(const FString& Filename)
     FBufferArchive BinaryData;
     
     // Write metadata
-    int32 SavedSize = Size;
+    int32 SavedSize = SizeX;
+    BinaryData.Serialize(&SavedSize, sizeof(SavedSize));
+    SavedSize = SizeY;
+    BinaryData.Serialize(&SavedSize, sizeof(SavedSize));
+    SavedSize = SizeZ;
     BinaryData.Serialize(&SavedSize, sizeof(SavedSize));
     
     float SavedVoxelSize = VoxelSize;
@@ -165,8 +228,12 @@ bool AMarchingCubeObject::LoadVoxelsFromFile(const FString& Filename)
     FMemoryReader Reader(FileData, true);
     
     // Read metadata
-    int32 LoadedSize;
-    Reader.Serialize(&LoadedSize, sizeof(LoadedSize));
+    int32 LoadedSizeX;
+    Reader.Serialize(&LoadedSizeX, sizeof(LoadedSizeX));
+    int32 LoadedSizeY;
+    Reader.Serialize(&LoadedSizeY, sizeof(LoadedSizeY));
+    int32 LoadedSizeZ;
+    Reader.Serialize(&LoadedSizeZ, sizeof(LoadedSizeZ));
     
     float LoadedVoxelSize;
     Reader.Serialize(&LoadedVoxelSize, sizeof(LoadedVoxelSize));
@@ -187,7 +254,10 @@ bool AMarchingCubeObject::LoadVoxelsFromFile(const FString& Filename)
     Reader.Serialize(LoadedVoxels.GetData(), NumVoxels * sizeof(float));
     
     // Update object state
-    Size = LoadedSize;
+    //Size = LoadedSize;
+	SizeX = LoadedSizeX;
+	SizeY = LoadedSizeY;
+	SizeZ = LoadedSizeZ;
     VoxelSize = LoadedVoxelSize;
     Voxels = MoveTemp(LoadedVoxels);
     
@@ -202,6 +272,18 @@ bool AMarchingCubeObject::LoadVoxelsFromFile(const FString& Filename)
     return true;
 }
 
+//Blake added function :)
+void AMarchingCubeObject::UpdateNavmesh()
+{
+	if (NavigationSystem)
+	{
+		UE_LOG(LogTemp, Display, TEXT("UPDATING NAVMESH"));
+		NavigationSystem->UpdateComponentInNavOctree(*Mesh);
+		NavigationSystem->AddDirtyArea(Mesh->Bounds.GetBox(), ENavigationDirtyFlag::All);
+		return;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("NAVMESH INVALID!"));
+}
 
 
 // Called when the game starts or when spawned
@@ -209,33 +291,42 @@ void AMarchingCubeObject::BeginPlay()
 {
 	Super::BeginPlay();
 
-	FBox meshBox = StaticMesh->GetBoundingBox();
-	FVector meshDimensions = meshBox.GetSize();
-	const float SizeX = FMath::CeilToInt(meshDimensions.X / VoxelSize);
-	const float SizeY = FMath::CeilToInt(meshDimensions.Y / VoxelSize);
-	const float SizeZ = FMath::CeilToInt(meshDimensions.Z / VoxelSize);
-	Size = FMath::Max(FMath::Max(SizeX, SizeY), SizeZ);
-	
-	Voxels.SetNum((Size + 1) * (Size + 1) * (Size + 1));
-	VoxelsHitStatus.SetNum((Size + 1) * (Size + 1) * (Size + 1));
-	//Colors.SetNum((Size + 1) * (Size + 1) * (Size + 1));
-	//Voxels = TArray<float>();
-	Colors = TArray<FColor>();
-	Vertices = TArray<FVector>();
-	Triangles = TArray<int>();
-	Normals = TArray<FVector>();
-	UVs = TArray<FVector2D>();
+	UStaticMesh* StaticMesh = StaticMeshComponent ? StaticMeshComponent->GetStaticMesh() : nullptr;
 
-	OriginalColors = TArray<FColor>();
-	OriginalVertices = TArray<FVector>();
-	OriginalTriangles = TArray<int>();
-	OriginalNormals = TArray<FVector>();
-	OriginalUVs = TArray<FVector2D>();
-	OriginalIndices = TArray<int>();
+	if(StaticMesh)
+	{
+		FBox meshBox = StaticMesh->GetBoundingBox();
+		FVector meshDimensions = meshBox.GetSize();
+		const float NewSizeX = FMath::CeilToInt(meshDimensions.X / VoxelSize) * 4;
+		const float NewSizeY = FMath::CeilToInt(meshDimensions.Y / VoxelSize) * 2;
+		const float NewSizeZ = FMath::CeilToInt(meshDimensions.Z / VoxelSize) * 4;
+		//Size = FMath::Max(FMath::Max(SizeX, SizeY), SizeZ);
+		SizeX = NewSizeX;
+		SizeY = NewSizeY;
+		SizeZ = NewSizeZ;
+		
+		Voxels.SetNum((SizeX + 1) * (SizeY + 1) * (SizeZ + 1));
+		VoxelsHitStatus.SetNum((SizeX + 1) * (SizeY + 1) * (SizeZ + 1));
+		//Colors.SetNum((Size + 1) * (Size + 1) * (Size + 1));
+		//Voxels = TArray<float>();
+		Colors = TArray<FColor>();
+		Vertices = TArray<FVector>();
+		Triangles = TArray<int>();
+		Normals = TArray<FVector>();
+		UVs = TArray<FVector2D>();
+	
+		OriginalColors = TArray<FColor>();
+		OriginalVertices = TArray<FVector>();
+		OriginalTriangles = TArray<int>();
+		OriginalNormals = TArray<FVector>();
+		OriginalUVs = TArray<FVector2D>();
+		OriginalIndices = TArray<int>();
+	}
 
 	if (ShouldLoad)
 	{
 		LoadVoxelsFromFile(VoxelDataFilename);
+		UpdateNavmesh();
 		return;
 	}
 
@@ -303,7 +394,6 @@ void AMarchingCubeObject::BeginPlay()
 	//UE_LOG(LogTemp, Warning, TEXT("Starting Data Generation"));
 
 	GenerateData(GetActorLocation());
-
 	UE_LOG(LogTemp, Warning, TEXT("Generate Data Done"));
 	GenerateMesh();
 	UE_LOG(LogTemp, Warning, TEXT("Generate Mesh Done"));
@@ -313,7 +403,8 @@ void AMarchingCubeObject::BeginPlay()
 	{
 		SaveVoxelsToFile(VoxelDataFilename);
 	}
-	
+
+	UpdateNavmesh();
 }
 
 // Called every frame
@@ -325,15 +416,21 @@ void AMarchingCubeObject::Tick(float DeltaTime)
 
 void AMarchingCubeObject::GenerateData(const FVector& Position)
 {
-	//FVector MeshCenter = StaticMesh->GetBoundingBox().GetCenter();
-	//FVector offset = Position - MeshCenter;
-    FVector startPos = Position - FVector(Size/2 * VoxelSize, Size/2 * VoxelSize, 0);
-	
-	for (int X = 0; X <= Size; ++X)
+	UStaticMesh* StaticMesh = StaticMeshComponent ? StaticMeshComponent->GetStaticMesh() : nullptr;
+	if(!StaticMesh)
 	{
-		for (int Y = 0; Y <= Size; ++Y)
+		return;
+	}
+	FVector MeshCenter = StaticMesh->GetBoundingBox().GetCenter();
+	FVector offset = Position - MeshCenter;
+    FVector startPos = Position - FVector(SizeX/4 * VoxelSize, SizeY/2 * VoxelSize,0);
+    const float SurfaceProximityThreshold = VoxelSize * 0.1f;
+	
+	for (int X = 0; X <= SizeX; ++X)
+	{
+		for (int Y = 0; Y <= SizeY; ++Y)
 		{
-			for (int Z = 0; Z <= Size; ++Z)
+			for (int Z = 0; Z <= SizeZ; ++Z)
 			{
 				FVector pos = startPos + FVector(X, Y, Z) * VoxelSize;
 				FVector localPos = GetActorTransform().InverseTransformPosition(pos);
@@ -347,13 +444,13 @@ void AMarchingCubeObject::GenerateData(const FVector& Position)
                         localPos.X, localPos.Y, localPos.Z, 
                         isInside ? TEXT("true") : TEXT("false"));
                 }
-				if (X == Size/2 && Y == Size/2 && Z == Size/2) {
+				if (X == SizeX/2 && Y == SizeY/2 && Z == SizeZ/2) {
                     // Debug center point
                     UE_LOG(LogTemp, Warning, TEXT("Center point (%f,%f,%f) - isInside: %s"),
                         localPos.X, localPos.Y, localPos.Z, 
                         isInside ? TEXT("true") : TEXT("false"));
                 }
-				if (X == Size && Y == Size && Z == Size) {
+				if (X == SizeX && Y == SizeY && Z == SizeZ) {
                     // Debug center point
                     UE_LOG(LogTemp, Warning, TEXT("End point (%f,%f,%f) - isInside: %s"),
                         localPos.X, localPos.Y, localPos.Z, 
@@ -364,12 +461,7 @@ void AMarchingCubeObject::GenerateData(const FVector& Position)
 				VoxelsHitStatus[GetVoxelIndex(X,Y,Z)] = false;
 			}
 		}
-	} // Count how many voxels are inside
-    int insideCount = 0;
-    for (float val : Voxels) {
-        if (val > 0.0f) insideCount++;
-    }
-    UE_LOG(LogTemp, Warning, TEXT("Inside voxels: %d of %d"), insideCount, Voxels.Num());
+	}
 }
 
 void AMarchingCubeObject::GenerateMesh()
@@ -388,11 +480,11 @@ void AMarchingCubeObject::GenerateMesh()
 	}
 
 	float Cube[8];
-	for (int X = 0; X < Size; ++X)
+	for (int X = 0; X < SizeX; ++X)
 	{
-		for (int Y = 0; Y < Size; ++Y)
+		for (int Y = 0; Y < SizeY; ++Y)
 		{
-			for (int Z = 0; Z < Size; ++Z)
+			for (int Z = 0; Z < SizeZ; ++Z)
 			{
 				for (int i = 0; i < 8; ++i)
 				{
@@ -406,6 +498,11 @@ void AMarchingCubeObject::GenerateMesh()
 
 void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
 {
+	UStaticMesh* StaticMesh = StaticMeshComponent ? StaticMeshComponent->GetStaticMesh() : nullptr;
+	if(!StaticMesh)
+	{
+		return;
+	}
 	FBox boundingBox = StaticMesh->GetBoundingBox();
 	FVector meshMin = boundingBox.Min;
 	FVector meshMax = boundingBox.Max;
@@ -493,7 +590,7 @@ void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
 
 int AMarchingCubeObject::GetVoxelIndex(int X, int Y, int Z) const
 {
-	return  Z * (Size + 1) * (Size + 1) + Y * (Size + 1) + X;
+    return Z * (SizeX + 1) * (SizeY + 1) + Y * (SizeX + 1) + X;
 }
 
 float AMarchingCubeObject::GetInterpolationOffset(float V1, float V2) const
@@ -510,3 +607,4 @@ void AMarchingCubeObject::ApplyMesh()
 	UE_LOG(LogTemp, Warning, TEXT("%d"), Colors.Num());
 	Mesh->CreateMeshSection(0, Vertices, Triangles, Normals, UVs, Colors, TArray<FProcMeshTangent>(), true);
 }
+

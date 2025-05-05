@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "ProceduralMeshComponent.h"
+#include "NavigationSystem.h"
 #include "MarchingCubeObject.generated.h"
 
 UCLASS()
@@ -16,7 +17,7 @@ public:
 	// Sets default values for this actor's properties
 	AMarchingCubeObject();
 	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
-	float SurfaceLevel = 0.0f;
+	float SurfaceLevel = -10.0f;
 	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
 	bool Interpolation = true;
 	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
@@ -34,10 +35,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void MakeHole(const FVector& Center, float Radius);
 
+
 	
 
 private:
-	void Setup();
 	void GenerateData(const FVector& Position);
 	void GenerateMesh();
 	void March(int X, int Y, int Z, const float Cube[8]);
@@ -46,16 +47,26 @@ private:
 	
 	void ApplyMesh();
 
+	//Blake added this :)
+	UPROPERTY()
+	UNavigationSystemV1* NavigationSystem = UNavigationSystemV1::GetCurrent(GetWorld());
+
+	void UpdateNavmesh();
+	//End of Blake section :)
+
 	UPROPERTY()
 	TObjectPtr<UProceduralMeshComponent> Mesh;
 
 	UPROPERTY(EditDefaultsOnly, Category="Static Mesh")
-	UStaticMesh* StaticMesh;
+	UStaticMeshComponent* StaticMeshComponent;
 
 	TArray<float> Voxels;
 	TArray<bool> VoxelsHitStatus;
 	int TriangleOrder[3] = {0,1,2};
-	int Size = 64;
+	//int Size = 1000;
+	int SizeX = 64;
+	int SizeY = 64;
+	int SizeZ = 64;
 	UPROPERTY(EditDefaultsOnly, Category="Static Mesh")
 	float VoxelSize = 20.f;
 	int VertexCount = 0;
@@ -78,7 +89,7 @@ private:
 	float ClosestTriangleDistance(const FVector& P);
 	bool IsInsideMesh(const FVector& P);
 
-	FVector GetVoxelWorldPosition(int ArrayIndex) const;
+	//FVector GetVoxelWorldPosition(int ArrayIndex) const;
 	FVector GetVoxelWorldPosition(int X, int Y, int Z) const;
 
 	bool SaveVoxelsToFile(const FString& Filename);
@@ -390,6 +401,8 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	
+	//Called before begin play
+	virtual void PostInitializeComponents() override;
 	
 public:	
 	// Called every frame

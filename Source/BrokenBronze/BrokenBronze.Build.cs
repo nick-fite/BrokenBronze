@@ -8,9 +8,9 @@ public class BrokenBronze : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "RenderCore", "RHI"});
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "AIModule", "NavigationSystem"});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "ProceduralMeshComponent", "ProceduralMeshComponentEditor" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "ProceduralMeshComponent" });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
