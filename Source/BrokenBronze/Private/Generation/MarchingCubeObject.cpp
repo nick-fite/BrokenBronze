@@ -3,7 +3,7 @@
 
 #include "MarchingCubeObject.h"
 
-#include "Generators/MarchingCubes.h"
+#include "Serialization/BufferArchive.h"
 
 // Sets default values
 AMarchingCubeObject::AMarchingCubeObject()
@@ -20,9 +20,6 @@ AMarchingCubeObject::AMarchingCubeObject()
 
 void AMarchingCubeObject::MakeHole(const FVector& Center, float Radius)
 {
-	FVector localCenter = GetActorTransform().InverseTransformPosition(Center);
-	FVector startPos = GetActorLocation() - FVector(Size/2 * VoxelSize, Size/2 * VoxelSize, 0);
-	
 	for (int X = 0; X <= Size; ++X)
 	{
 		for (int Y = 0; Y <= Size; ++Y)
@@ -109,6 +106,104 @@ FVector AMarchingCubeObject::GetVoxelWorldPosition(int X, int Y, int Z) const
 	return GetActorLocation() + GetActorRotation().RotateVector(localPos);
 }
 
+
+bool AMarchingCubeObject::SaveVoxelsToFile(const FString& Filename)
+{
+    // Create binary archive
+    FBufferArchive BinaryData;
+    
+    // Write metadata
+    int32 SavedSize = Size;
+    BinaryData.Serialize(&SavedSize, sizeof(SavedSize));
+    
+    float SavedVoxelSize = VoxelSize;
+    BinaryData.Serialize(&SavedVoxelSize, sizeof(SavedVoxelSize));
+    
+    // Write array size
+    int32 NumVoxels = Voxels.Num();
+    BinaryData.Serialize(&NumVoxels, sizeof(NumVoxels));
+    
+    // Write voxel data
+    if (NumVoxels > 0)
+    {
+        BinaryData.Serialize(Voxels.GetData(), NumVoxels * sizeof(float));
+    }
+    
+    // Save to file
+    FString FilePath = FPaths::ProjectSavedDir() + Filename;
+    bool bSuccess = FFileHelper::SaveArrayToFile(BinaryData, *FilePath);
+    
+    // Clean up
+    BinaryData.FlushCache();
+    BinaryData.Empty();
+    
+    if (bSuccess)
+    {
+        UE_LOG(LogTemp, Display, TEXT("Saved %d voxels to %s"), NumVoxels, *FilePath);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to save to %s"), *FilePath);
+    }
+    
+    return bSuccess;
+}
+
+bool AMarchingCubeObject::LoadVoxelsFromFile(const FString& Filename)
+{
+    FString FilePath = FPaths::ProjectSavedDir() + Filename;
+    
+    // Load file content
+    TArray<uint8> FileData;
+    if (!FFileHelper::LoadFileToArray(FileData, *FilePath))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to load file: %s"), *FilePath);
+        return false;
+    }
+    
+    // Create reader
+    FMemoryReader Reader(FileData, true);
+    
+    // Read metadata
+    int32 LoadedSize;
+    Reader.Serialize(&LoadedSize, sizeof(LoadedSize));
+    
+    float LoadedVoxelSize;
+    Reader.Serialize(&LoadedVoxelSize, sizeof(LoadedVoxelSize));
+    
+    // Read array size
+    int32 NumVoxels;
+    Reader.Serialize(&NumVoxels, sizeof(NumVoxels));
+    
+    if (NumVoxels <= 0 || NumVoxels > 10000000) // Sanity check
+    {
+        UE_LOG(LogTemp, Error, TEXT("Invalid voxel count: %d"), NumVoxels);
+        return false;
+    }
+    
+    // Read voxel data
+    TArray<float> LoadedVoxels;
+    LoadedVoxels.SetNumUninitialized(NumVoxels);
+    Reader.Serialize(LoadedVoxels.GetData(), NumVoxels * sizeof(float));
+    
+    // Update object state
+    Size = LoadedSize;
+    VoxelSize = LoadedVoxelSize;
+    Voxels = MoveTemp(LoadedVoxels);
+    
+    // Reset hit status
+    VoxelsHitStatus.Init(false, NumVoxels);
+    
+    // Rebuild mesh
+    GenerateMesh();
+    ApplyMesh();
+    
+    UE_LOG(LogTemp, Display, TEXT("Loaded %d voxels from %s"), NumVoxels, *FilePath);
+    return true;
+}
+
+
+
 // Called when the game starts or when spawned
 void AMarchingCubeObject::BeginPlay()
 {
@@ -137,7 +232,12 @@ void AMarchingCubeObject::BeginPlay()
 	OriginalNormals = TArray<FVector>();
 	OriginalUVs = TArray<FVector2D>();
 	OriginalIndices = TArray<int>();
-	
+
+	if (ShouldLoad)
+	{
+		LoadVoxelsFromFile(VoxelDataFilename);
+		return;
+	}
 
 	if (StaticMesh)
 	{
@@ -209,6 +309,10 @@ void AMarchingCubeObject::BeginPlay()
 	UE_LOG(LogTemp, Warning, TEXT("Generate Mesh Done"));
 	ApplyMesh();
 	UE_LOG(LogTemp, Warning, TEXT("Apply Mesh Done"));
+	if (ShouldSave)
+	{
+		SaveVoxelsToFile(VoxelDataFilename);
+	}
 	
 }
 

@@ -21,6 +21,15 @@ public:
 	bool Interpolation = true;
 	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
 	float MeshScale = 10.f;
+
+	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
+	bool ShouldSave = false;
+	UPROPERTY(EditDefaultsOnly, Category="MarchingChunks")
+	bool ShouldLoad = true;
+
+
+	UPROPERTY(EditdefaultsOnly, Category="SavingObj")
+	FString VoxelDataFilename = TEXT("Test.voxel");
 	
 	UFUNCTION(BlueprintCallable)
 	void MakeHole(const FVector& Center, float Radius);
@@ -71,6 +80,9 @@ private:
 
 	FVector GetVoxelWorldPosition(int ArrayIndex) const;
 	FVector GetVoxelWorldPosition(int X, int Y, int Z) const;
+
+	bool SaveVoxelsToFile(const FString& Filename);
+	bool LoadVoxelsFromFile(const FString& Filename);
 	
 	//the marching cube technique that we're trying to mimic requires a lot of data. We could remake it.
 	//We could also reinvent the wheel, but I think we have better things to do.
