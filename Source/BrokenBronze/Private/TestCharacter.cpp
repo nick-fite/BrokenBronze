@@ -9,6 +9,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Generation/MarchingCubeObject.h"
 #include "NavigationSystem.h"
+#include "Camera/CameraComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 
 ATestCharacter::ATestCharacter()
@@ -22,6 +24,13 @@ ATestCharacter::ATestCharacter()
 void ATestCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    APlayerCameraManager* cameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
+	if(cameraManager)
+	{
+		cameraManager->ViewPitchMax = 359;
+		cameraManager->ViewPitchMin = -359;
+	}
 }
 
 void ATestCharacter::Tick(float DeltaTime)

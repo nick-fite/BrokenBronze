@@ -326,6 +326,7 @@ void AMarchingCubeObject::BeginPlay()
 	if (ShouldLoad)
 	{
 		LoadVoxelsFromFile(VoxelDataFilename);
+		Mesh->SetMaterial(0, CustomMat);
 		UpdateNavmesh();
 		return;
 	}
@@ -570,9 +571,9 @@ void AMarchingCubeObject::March(int X, int Y, int Z, const float Cube[8])
 
 		Vertices.Append({V1, V2, V3});
 
-		FVector2D UV1 = FVector2D(V1.X / meshWidth, V1.Y / meshHeight);
-        FVector2D UV2 = FVector2D(V2.X / meshWidth, V2.Y / meshHeight);
-        FVector2D UV3 = FVector2D(V3.X / meshWidth, V3.Y / meshHeight);
+		FVector2D UV1 = FVector2D(V1.X / meshWidth, (V1.Y + V1.Z) / (meshHeight + meshHeight));
+		FVector2D UV2 = FVector2D(V2.X / meshWidth, (V2.Y + V2.Z) / (meshHeight + meshHeight));
+		FVector2D UV3 = FVector2D(V3.X / meshWidth, (V3.Y + V3.Z) / (meshHeight + meshHeight));
 		
         UVs.Append({ UV1, UV2, UV3 });
 		

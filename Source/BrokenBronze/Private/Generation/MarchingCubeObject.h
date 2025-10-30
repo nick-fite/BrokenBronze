@@ -60,6 +60,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category="Static Mesh")
 	UStaticMeshComponent* StaticMeshComponent;
 
+	UPROPERTY(EditDefaultsOnly, category="Marching Chunks")
+	UMaterialInterface* CustomMat;
+
 	TArray<float> Voxels;
 	TArray<bool> VoxelsHitStatus;
 	int TriangleOrder[3] = {0,1,2};
